@@ -32,3 +32,21 @@
 - new requirements for different crowd systems  
 
 ### 3.1 Basics  
+- pose and binding pose  
+- skinning matrix  
+    $$v' = \sum_i^nw_iM_iM_{ref_i}^{-1}v,\quad where \sum_i^nw_i = 1$$
+
+### Current Techniques for Sharing Aniamtion  
+- animation texture: a row for a single pose of a single animation, a bone's transformation need a 4 * 3 matrix, a texel can store 4 floats  
+- weight $w_i$ and $M_{ref_i}^{-1}$ matrix are constant and provided at the initialization time, and $M_i$ can be sampled frome animation texture accroding to current time and animation index assigned to each vertex.
+- using skinning matrix to calculate every skinning vertex transformation. 
+- offset system: using to share animation among agents.  
+    if 2 agents share the same animation, then the agents in that animation can have different time offsets assigned randomly.  
+
+### Current Limitations and Requirements  
+- new requirements:  
+    1. states machine become common, with transitiona among clips decided by a decision-maker layer on the simulation side.  
+    2. 2D blending depending on parameters fed in at runtime  
+    3. animation events support  
+    4. animation layers support  
+
