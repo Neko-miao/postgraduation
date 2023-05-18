@@ -143,3 +143,9 @@ VertexPos skinVertex(VeretexPos inputVertex, agentId, clusterId)
 ![](https://s3.bmp.ovh/imgs/2023/05/17/b4f36affd09a2c82.png)
 
 ### 4.6 Skinning Shader and Custom Animations per Agent  
+- mark bones so that they are overridden by a custom vertex shader code authored by the user, and the vertices depend on these bones will not read the animation data from the ose buffer  
+
+## 5. Evaluation  
+## 6. Conclusions and Future Work  
+- dynamic LoD  
+- transition between skeletal and cage/impostor aniamtion  
