@@ -6,7 +6,7 @@
 ## 1. contribution
 - Improving the memory footprint to support different skeletons and animation offsets.  
 - Animation Transiton allows states and reactions  
-- GPU blendng  
+- GPU blending  
 - Modularized agent animation  
 - Improving the authoring time for agent animations  
 
@@ -143,7 +143,7 @@ VertexPos skinVertex(VeretexPos inputVertex, agentId, clusterId)
 ![](https://s3.bmp.ovh/imgs/2023/05/17/b4f36affd09a2c82.png)
 
 ### 4.6 Skinning Shader and Custom Animations per Agent  
-- mark bones so that they are overridden by a custom vertex shader code authored by the user, and the vertices depend on these bones will not read the animation data from the ose buffer  
+- mark bones so that they are overridden by a custom vertex shader code authored by the user, and the vertices depend on these bones will not read the animation data from the pose buffer  
 
 ## 5. Evaluation  
 ## 6. Conclusions and Future Work  
