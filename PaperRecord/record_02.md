@@ -16,6 +16,7 @@
     - PermuteV: similiar to PermuteT  
     - Map: array to record amout of triangles according to the amount of vertices. (e.g. If there are 7 vertices and 8 triangles, then Map[7]=8)
 - Mesh Simplification Procedures:
+![](https://s3.bmp.ovh/imgs/2023/06/14/ff47610ed02509e5.png)
 1. **choose a edge to collapse**: calculate the cost of each edge, and choose the edge of minimous cost to collapse.  If we merge v_src to v_target, then ECols[v_src]=v_target 
 2. **Permutation for vertices**: assume m vertices remaining for now, and PermuteV[v_src]=m after edge collapsing by procedure 1.  
 3. **Vertex-Triangle count**: m is current amount of vertices, n is current amount of triangles, after one edge is collapsed, k triangles decrease, so Map[m - 1] = n - k  
@@ -24,8 +25,11 @@
 
 ### Triangle Refomation  
 - data rearrangement:  
+![](https://s3.bmp.ovh/imgs/2023/06/14/1c0f44b934a9b652.png)
 - triangle reformation:  
+![](https://s3.bmp.ovh/imgs/2023/06/14/8c0ab7d9f63cb07d.png)
 - when there are m vertices, we get Map[m] = n triangles.  And then we identify the 3 vertices of each triangles by the result of data rearrangement. And then we reform these n triangles and finnaly get the simplified mesh.  
+![](https://s3.bmp.ovh/imgs/2023/06/14/601504f372cd4a78.png)
 
 **And all is to determine the numerber of vertices.**  
 
@@ -35,11 +39,19 @@ technology for data transferring from CPU to GPU
 ## LOD selection  
 ### First-pass algorithm  
 - equation (1) to determin the number of each mesh  
-- equation (2) to valid the numbers  
+$$vNum = N\frac{w_i^{1/\alpha}}{\sum_{i=1}^m w_i^{1/\alpha}}, where\quad w_i=\beta\frac{A_i}{D_i}P_i^\beta,\beta=\alpha - 1$$
 
+- equation (2) to valid the numbers  
+$$\bar{vNum} = \begin{cases}
+vNum & vNum\in[min, max] \\
+max & vNum \gt max \\
+min & vNum/min \in [minT, 1] \\
+0 & vNum/min \lt minT
+\end{cases}$$
 ### Second-pass algorithm  
 to make sure the efficient usage of GPU memory  
+![](https://s3.bmp.ovh/imgs/2023/06/14/bf23d2068b522d50.png)
 
 
+**AFTTER ALL, WE RENDER MESH**
 
-AFTTER ALL, WE RENDER MESH
