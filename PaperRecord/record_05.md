@@ -1,0 +1,1 @@
+# Crowd animation in Unity: implementation of a module utilizing Data-Oriented Technology Stack and a General-Purpose Graphics Processing Unit
