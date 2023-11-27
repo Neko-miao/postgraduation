@@ -129,8 +129,8 @@ $$ v' = \sum_i^n w_i M_i M_{bind_i}^{-1} v , \space where \space \sum_i^n w_i = 
         最后$InstanceCount$指每个动画状态最多拥有的实例个数，上一节说到了一个动画状态实例可以直接供该状态下需要使用该实例动画的角色复用，每一个动画实例虽然都代表这同一个动画状态，但其动画表现略有不同，因为在动画状态共享系统初始化时，每一个动画状态实例都会有一个偏差值，这个偏差值的存在会使同一个动画片段从不同的时刻开始播放，这样做的好处就是进一步丰富了大规模群体中角色动画的多样表现。  
     （2）定义动画共享状态处理器  
         在定义好角色的动画状态之后，就需要动画状态处理器来决定动画共享系统中的角色当前应该处于那种状态，它可以基于预先定义的状态转化条件和优先级来进行决策，从而有效避免不符合用户预期的状态转换。例如，如果角色当前处于“行走”状态，动画状态处理器将检查是否有任何条件触发了状态的转换，如角色是否发起了“攻击”指令。如果有条件满足，动画状态处理器将根据用户定义的动画状态转换关系决定是否切换到另一个状态。本文将动画共享状态处理定义为一个转换函数：
-            $$AnimStateProcessor = TransitionTo(FromAnimState, Parameters, ToAnimState)$$  
-        $FromAnimState$表示角色的当前动画状态，$Parameters$是用户定义的一系列角色状态参数集合，在运行时需要向系统传输对应的参数，$ToAnimState$是根据传入该函数的角色当前状态及其状态参数决定的角色的下一个动画状态。  
+            $$AnimStateProcessor = DeterminAnimState(FromAnimState, Parameters, ToAnimState, ShouldProcess)$$  
+        $FromAnimState$表示角色的当前动画状态，$Parameters$是用户定义的一系列角色状态参数集合，在运行时需要向系统传输对应的参数，$ToAnimState$是根据传入该函数的角色当前状态及其状态参数决定的角色的下一个动画状态，该状态有可能与角色当前状态是一致的，$ShouldProcess$用于决定新的动画状态是否生效，这个字段的存在是为了给利用动画共享系统设计大规模群体动画应用的用户提供更多控制权和灵活性，例如，对于群体中远离摄像机的角色个体而言，它们的动画表现对整个群体的动画表现影响相对较弱，因此其动画状态不需要频繁地更新。
     （3）配置动画共享设置  
         前文中有提到，本文的系统可以支持多种不同骨架的角色，因此这一步骤的动画共享设置就包含了多种不同骨架结构的角色在动画状态共享系统中的初始化设置，而其中一个动画共享设置可以定义为：
             $$AnimSharingSetup = (Skeleton, SkinnedMesh, AnimState, AnimStateProcessor, MaxTransitionCount, TransitionTime)$$  
@@ -139,27 +139,43 @@ $$ v' = \sum_i^n w_i M_i M_{bind_i}^{-1} v , \space where \space \sum_i^n w_i = 
     （4）创建动画共享管理器  
         在运行时阶段，首先需要创建动画共享管理器，并用编辑阶段的获得的配置信息初始化它。在本文提出的动画状态共享系统架构中，一个动画共享管理器包含了多个动画共享实例，每个动画共享实例都会某种骨架结构的角色动画更新，其数据结构如[图3.3]所示。  
         [图3.3 动画共享管理器数据结构]  
-        从图中可以看出，每个动画共享实例与$AnimSharingSetup$是一一对应的，骨架、动画蒙皮、动画状态处理器分别对应定义的$Skeleton$、$SkinnedMesh$和$AnimStateProcessor$，接下来有一组动画状态实例，每个动画状态实例的定义如下：
-            $$ AnimStateInstance = (AnimState, ClipIndex, Offset, SamplingPose, OutputPose) $$
-        其中$AnimState$完全由上一节提到的动画状态配置信息初始化，其实例的数量由$InstanceCount$决定。上一节说到$AnimState$中配置了多个不同的用于表现该动画状态的动画片段，而$ClipIndex$的作用就在于指明具体使用哪一个动画片段，而$Offset$的作用是为共享同一个动画片段的角色做动画差异化，它表示在$ClipIndex$指向的动画片段上做采样的开始时刻。在前文提到，一个动画片段是一系列姿势的集合，为某个角色播放这个动画片段时，其实际就是不断地从该动画片段的姿势集合中采样出一个合适的姿势，并将其应用到角色的骨架中，因此$SamplingPose$表示在当前时刻下该状态从$AnimationClips$中采样得到姿势，定义为：
-            $$SamplingPose = \{ B(i) \space | \space B(i)表示角色第i个骨骼相对其骨架空间的变换矩阵 \}$$  
-        若角色当前处于一个非可叠加的动画状态，则其输出姿势$OutputPose$就是该状态的采样姿势，表示为：
-            $$OutputPose = SamplingPose$$  
-        若角色当前处于一个可叠加的动画状态$AnimState_{additive}$，其采样姿势为$SamplingPose{additive}$，而他的前一个动画状态为$AnimaState_{previous}$，其采样姿势为$SamplingPose_{previous}$，此时角色的最终输出姿势表示为：
-            $$OutputPose = SkeletalMask_{additive} * SamplingPose{additive} + (SkeletalMask_{full} - SkeletalMask_{additive})  * SamplingPose_{previous} $$ 
+        从图中可以看出，每个动画共享实例与$AnimSharingSetup$是一一对应的，骨架、动画蒙皮、动画状态处理器分别对应定义的$Skeleton$、$SkinnedMesh$和$AnimStateProcessor$，接下来有一组不可叠加的动画状态实例，每个动画状态实例的定义如下：
+            $$ AnimStateInstance = (AnimState, ClipIndex, Offset, SamplingPose, OutputPose) $$   
+        其中$AnimState$完全由上一节提到的动画状态配置信息初始化，其实例的数量由$InstanceCount$决定。上一节说到$AnimState$中配置了多个不同的用于表现该动画状态的动画片段，而$ClipIndex$的作用就在于指明具体使用哪一个动画片段，而$Offset$的作用是为共享同一个动画片段的角色做动画差异化，它表示在$ClipIndex$指向的动画片段上做采样的开始时刻。在前文提到，一个动画片段是一系列姿势的集合，为某个角色播放这个动画片段时，其实际就是不断地从该动画片段的姿势集合中采样出一个合适的姿势，并将其应用到角色的骨架中。对于可叠加的动画状态，本文会将其与前一个状态产生的动画姿势进行叠加，因此可叠加的动画状态实例相对不可叠加的动画状态实例，会多一个指向前一个动画状态实例的指针$PreStateInstance$，其定义为：
+            $$ AdditiveAnimStateInstance = (AnimState, ClipIndex, Offset, SamplingPose, OutputPose, PreStateInstance) $$  
         在初始化完所有动画状态实例之后，系统需要初始化动画过渡实例，其定义如下：
             $$AnimTransitionInstance = (TransitionTime, FromAnimStateInstance, ToAnimStateInstance, TransitionPose)$$  
-        其中$TransitionTime$根据用户的配置决定，$FromAnimStateInstance$和$ToAnimStateInstance$分别表示参与过渡的源动画状态实例和目标动画状态实例，会根据运行时的上下文条件动态指定，即如果角色需要进行动画过渡，它首先查找满足其从源动画状态实例过渡到目标动画状态实例的动画过渡实例，如果查找失败，则系统会选取一个未被使用的过渡实例，并将其源动画实例指定为角色当前动画状态实例，目标状态实例指定为角色需要过渡到的动画状态实例，然后计算该角色过渡姿势：
-            $$TransitionPose = FromAnimStateInstance.OutputPose + (ToAnimStateInstance.OutputPose - FromAnimStateInstance.OutputPose) * s, s = RealTransitionTime / TransitionTime \in [0,1]$$  
-        其中$RealTransitionTime$表示实际过渡时间。
-
+        其中$TransitionTime$根据用户的配置决定，$FromAnimStateInstance$和$ToAnimStateInstance$分别表示参与过渡的源动画状态实例和目标动画状态实例，会根据运行时的上下文条件动态指定，即如果角色需要进行动画过渡，它首先查找满足其从源动画状态实例过渡到目标动画状态实例的动画过渡实例，如果查找失败，则系统会选取一个未被使用的过渡实例，并将其源动画实例指定为角色当前动画状态实例，目标状态实例指定为角色需要过渡到的动画状态实例，然后计算该角色过渡姿势，具体过程在更新角色动画阶段会详细阐述。  
+            
     （5）注册动画角色  
         在完成动画共享管理器的创建和初始化工作之后，就可以将需要进行动画共享的角色注册到动画状态共享系统中。一个动画状态共享实例除了持有上一小节所述的数据外，还维护了一个动画角色列表，如[图3.4]所示。当注册一个动画角色，首先需要根据该角色的骨架结构选择正确的动画状态实例，然后取消原动画系统对该角色的动画控制权，最后将该角色加入到选出的动画状态实例维护的动画角色列表中即可。在成功注册之后，该角色的动画状态就由之前定义的动画共享状态处理器决定，而动画状态实例会根据角色的具体动画状态为它分配一个动画状态实例或动画过渡实例，角色的最终动画姿势就由其分配得到的实例姿势来决定。在[图3.4]中，每个注册进系统的动画角色都会维护一份角色实例数据，在本文的设计中，角色实例数据定义为：
-            $$CharacterInstance = (CurrentStateID, PreviousStateID, InTransition, PermutationIndex)$$  
-        其中，$CurrentStateID$和$PreviousStateID$分别表示该角色当前动画状态和上一帧的动画状态，$InTransition$表示该角色当前是否处于动画过渡状态，而$PermutationIndex$则指向该角色被分配被分配到的动画实例，如果角色不处于动画过渡状态，则指向动画状态实例，其姿势就是$OutputPose$，否则指向动画过渡实例，其姿势就是$TransitionPose$。这里需要特别说明的时，角色的动画过渡状态可能被中断，例如角色被攻击命中时需要立即播放一段击中反馈动画，一旦发生这种情况，角色就会进入新的动画过渡状态，即从当前状态向中断状态的过渡。
-        [图3.4 动画角色实例数据]
+            $$CharacterInstance = (CurrentStateID, PreviousStateID, InTransition, PermutationIndex, TransitionIdnex)$$  
+        其中，$CurrentStateID$和$PreviousStateID$分别表示该角色当前动画状态和上一帧的动画状态，$InTransition$表示该角色当前是否处于动画过渡状态，$PermutationIndex$指向该角色被分配到的动画实例（可能是可叠加的动画状态实例也可能是不可叠加的动画状态实例），角色姿势由$OutputPose$决定，$TransitionIdnex$指向该角色被分配到的动画过渡实例，其姿势由$TransitionPose$决定。这里需要特别说明的时，角色的动画过渡状态可能被中断，例如角色被攻击命中时需要立即播放一段击中反馈动画，一旦发生这种情况，角色就会进入新的动画过渡状态，即从当前状态向中断状态的过渡。
+        [图3.4 动画角色实例数据]  
+
     （6）更新角色动画  
-        - 更新过渡实例、更新动画实例、更新角色状态
+        一个动画共享系统会有若干个不同的动画共享实例来驱动更新对应骨架结构的角色动画，而更新动画的核心逻辑就在更新角色动画阶段，它直接决定了角色最终的动画姿势。对于一个动画共享实例来说，其更新角色动画阶段可以分4个子阶段顺序执行，分别是更新角色状态、更新过渡实例、更新动画实例、以及应用角色动画，如[图3.5]所示。       
+        [图3.5 更新角色动画流程]  
+
+        - 更新角色状态  
+        首先是更新角色状态，这一阶段会遍历所有注册进系统的角色，并将它们的上一个动画状态及其对应的状态参数传给前文所述的动画共享状态处理器，获取并更新每个角色当前的动画状态，然后判断角色最新的动画状态与上一次动画状态是否一致，如果两个状态一致，则无需处理。如果两个状态不一致，那么该动画共享实例就会首先为该角色分配其新状态下的动画状态实例，这里需要注意，对于可叠加状态而言，动画共享实例可能找不到一个与该角色前一个动画状态一致的可叠加动画状态实例，即为角色分配动画状态实例失败，此时动画共享实例会放弃此次动画状态的更新，因此对于有重要表现作用的叠加动画来说，需要适当提高其叠加动画实例的数量。如果角色可以成功分配到新状态的动画实例，那么动画共享实例会为该角色分配一个用于表现动画过渡的动画过渡实例，类似于可叠加动画实例的分配，分配动画过渡实例也有可能失败，此时会跳过动画过渡表现，直接让角色进入新的动画状态。在完成所有角色的动画状态更新后，每个角色的实例数据，即$CharacterInstance$，便维护到了最新状态，而动画共享实例还会产生若干个动画过渡实例$AnimTransitionInstance$和若干个动画状态实例$AnimStateInstance$，在以后的阶段会更新这些实例的输出姿势并将其应用到角色动画上。  
+        
+        - 更新过渡实例       
+        接下来是更新过渡实例，这一阶段会更新动画共享实例中所有需要更新的动画过渡实例，即根据上一阶段的处理得到若干个需要进行实际运算的$AnimTransitionInstance$，设$RealTransitionTime$表示实际过渡时间，再根据公式计算出每个动画过渡实例的过渡姿势：
+            $$TransitionPose = FromAnimStateInstance.OutputPose + (ToAnimStateInstance.OutputPose - FromAnimStateInstance.OutputPose) * s, s = RealTransitionTime / TransitionTime \in [0,1]$$  
+        如果过渡结束，即实际过渡时间已经超过了设定的过渡时间，那么共享这个动画过渡实例的每一个角色将更新它们的角色实例数据，即标记角色处于非过渡状态，取消分配角色的动画过渡实例，并将该过渡实例重新设置为可用状态。  
+
+        - 更新动画实例  
+        接下来是更新动画实例阶段，类似于更新过渡实例阶段，该阶段会为所产生的每个动画状态实例计算其最终输出姿势。对于某一个动画状态实例来说，首先根据实例数据的$ClipIndex$和$Offset$，从配置的若干个动画片段中正确采样出该动画状态实例的姿势，其采样姿势可以定义为：
+            $$SamplingPose = \{ B(i) \space | \space B(i)表示角色第i个骨骼相对其骨架空间的变换矩阵 \}$$  
+        若该动画状态实例是非可叠加的，即$AnimStateInstance$， 则其输出姿势$OutputPose$表示为：
+            $$OutputPose = SkeletalMask * SamplingPose$$  
+        若该动画状态实例是可叠加的，即$AdditiveAnimStateInstance$，则其输出姿势$OutputPose$表示为：
+            $$ OutputPose = SkeletalMask * SamplingPose + (SkeletalMask_{full} - SkeletalMask)  * PreStateInstance.OutputPose $$  
+        
+        - 应用动画并结合图例进一步说明角色动画更新阶段
+        
+
     （7）注销动画角色和销毁动画共享管理器  
         在运行时阶段，可以根据具体条件随时注销某个动画角色，注销后，动画状态共享系统就会删除这个角色的实例数据，并将其动画控制权返还给原来的系统。而销毁动画共享管理器意味着整个动画状态共享系统的结束，此时系统会自动注销所有动画角色并删除其持有的所有实例数据。
 
